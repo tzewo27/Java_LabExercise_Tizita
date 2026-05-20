@@ -1,0 +1,53 @@
+#include <iostream>
+#include <set>
+#include <algorithm>
+using namespace std;
+
+void printSet(const set<int>& s, const string& name) {
+    cout << name << ": ";
+    for (int item : s) {
+        cout << item << " ";
+    }
+    cout << endl;
+}
+
+void inputSet(set<int>& s, const string& name) {
+    int size, element;
+    cout << "Enter number of elements for " << name << ": ";
+    cin >> size;
+    cout << "Enter " << size << " elements:\n";
+    for (int i = 0; i < size; ++i) {
+        cin >> element;
+        s.insert(element);
+    }
+}
+
+int main() {
+    set<int> s1, s2, s3;
+
+    
+    inputSet(s1, "s1");
+    inputSet(s2, "s2");
+
+   
+    set<int> unionSet;
+    set_union(s1.begin(), s1.end(), s2.begin(), s2.end(), inserter(unionSet, unionSet.begin()));
+
+    set<int> intersectionSet;
+    set_intersection(s1.begin(), s1.end(), s2.begin(), s2.end(), inserter(intersectionSet, intersectionSet.begin()));
+
+   
+    set<int> differenceSet;
+    set_difference(s1.begin(), s1.end(), s2.begin(), s2.end(), inserter(differenceSet, differenceSet.begin()));
+
+   
+    s3 = unionSet;
+
+    printSet(s1, "Set s1");
+    printSet(s2, "Set s2");
+    printSet(s3, "Set s3 (union)");
+    printSet(intersectionSet, "Intersection (s1 ∩ s2)");
+    printSet(differenceSet, "Difference (s1 - s2)");
+
+    return 0;
+}
