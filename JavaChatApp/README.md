@@ -283,4 +283,4 @@ Future improvements could include user authentication with hashed passwords, pri
 
 ---
 
-*Report prepared as part of a practical programming project.*
+
