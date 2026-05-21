@@ -6,13 +6,13 @@
 
 1. [Introduction](#1-introduction)
 2. [Project Objectives](#2-project-objectives)
-3. [System Architecture](#3-system-architecture)
+3. [System Overview](#3-system-overview)
 4. [Technologies Used](#4-technologies-used)
-5. [Server Design](#5-server-design)
-6. [Client Design](#6-client-design)
-7. [Database Design](#7-database-design)
-8. [Key Features](#8-key-features)
-9. [How It Works — Flow Diagram](#9-how-it-works--flow-diagram)
+5. [Application Architecture](#5-application-architecture)
+6. [Server Design](#6-server-design)
+7. [Client Design](#7-client-design)
+8. [Database Storage](#8-database-storage)
+9. [File Transfer](#9-file-transfer)
 10. [Challenges & Solutions](#10-challenges--solutions)
 11. [Testing](#11-testing)
 12. [Conclusion](#12-conclusion)
@@ -21,42 +21,36 @@
 
 ## 1. Introduction
 
-This report presents the design and implementation of a **Multi-User Chat Application** built using a client-server architecture. The application allows multiple users to connect simultaneously, exchange messages in real time, and have all conversations **persisted in a server-side database** so that chat history is never lost between sessions.
-
-Modern communication platforms — such as WhatsApp, Slack, and Discord — are built on the same core principles explored in this project: reliable message delivery, concurrent user handling, and durable storage. This project serves as a practical demonstration of those fundamental concepts.
+This report presents the design and implementation of a **Multi-User Chat Application** written in **Java**. The application uses a client-server architecture where multiple clients can connect to a single server, exchange text messages in real time, and **transfer files** to each other. All chat messages are stored in a **server-side database** so the conversation history is never lost.
 
 ---
 
 ## 2. Project Objectives
 
-The primary goals of this project were:
-
-- Build a **server** capable of handling multiple simultaneous client connections.
-- Enable **real-time messaging** between connected users.
-- Store all chat messages in a **database on the server side** for persistence.
-- Allow clients to **retrieve chat history** upon connecting.
-- Ensure the system is **stable and scalable** under concurrent load.
+- Build a **Java server** that handles multiple connected clients at the same time.
+- Allow clients to **send and receive text messages** in real time.
+- Store all messages in a **database on the server**.
+- Support **file transfer** between connected clients.
+- Keep the design clean and straightforward.
 
 ---
 
-## 3. System Architecture
-
-The application follows a classic **Client-Server Architecture** with three main layers:
+## 3. System Overview
 
 ```
-┌─────────────┐        ┌──────────────────────┐        ┌─────────────┐
-│  Client 1   │◄──────►│                      │        │             │
-├─────────────┤        │    SERVER (Node.js    │◄──────►│  DATABASE   │
-│  Client 2   │◄──────►│    / Python / Java)   │        │  (SQLite /  │
-├─────────────┤        │                      │        │  PostgreSQL) │
-│  Client N   │◄──────►│  Multi-threaded /    │        │             │
-└─────────────┘        │  Async Handler       │        └─────────────┘
-                       └──────────────────────┘
+┌──────────┐          ┌─────────────────────┐          ┌──────────────┐
+│ Client 1 │◄────────►│                     │          │              │
+├──────────┤  Socket  │   Java Server        │◄────────►│   Database   │
+│ Client 2 │◄────────►│   (Multi-threaded)  │          │  (SQLite)    │
+├──────────┤          │                     │          │              │
+│ Client N │◄────────►│                     │          └──────────────┘
+└──────────┘          └─────────────────────┘
 ```
 
-- **Clients** connect to the server over a network socket (TCP or WebSocket).
-- The **Server** accepts and manages all connections, routes messages, and communicates with the database.
-- The **Database** stores users, messages, and session data persistently.
+- Clients connect to the server using **Java Sockets**.
+- The server runs a **separate thread** for each connected client.
+- All text messages are saved to a **SQLite database**.
+- Files are sent as **raw bytes** through the socket and saved on the receiving side.
 
 ---
 
@@ -64,223 +58,257 @@ The application follows a classic **Client-Server Architecture** with three main
 
 | Component     | Technology                        |
 |---------------|-----------------------------------|
-| Server        | Python (socket / asyncio) or Node.js (Express + Socket.IO) |
-| Client        | Python / JavaScript (browser or CLI) |
-| Database      | SQLite (development) / PostgreSQL (production) |
-| Communication | TCP Sockets / WebSockets          |
-| Protocol      | Custom text protocol / JSON       |
-| Version Control | Git & GitHub                   |
+| Language      | Java (JDK 17+)                    |
+| Networking    | `java.net.Socket` / `ServerSocket`|
+| Multithreading| `java.lang.Thread`                |
+| Database      | SQLite via JDBC (`sqlite-jdbc`)   |
+| File Transfer | `java.io` (InputStream / OutputStream) |
+| IDE           | IntelliJ IDEA / Eclipse           |
 
 ---
 
-## 5. Server Design
+## 5. Application Architecture
 
-### 5.1 Multi-Client Handling
+The project has three main classes:
 
-The server is the core of the application. It must handle many clients at the same time without blocking. This was achieved using one of the following strategies:
+| Class           | Role                                                    |
+|-----------------|---------------------------------------------------------|
+| `Server.java`   | Accepts client connections, manages threads, saves messages to DB |
+| `ClientHandler.java` | Runs on the server — handles one client's messages and files |
+| `Client.java`   | Connects to the server, sends/receives messages and files |
 
-- **Multi-threading:** A new thread is spawned for each client connection. Each thread listens for messages from its client independently.
-- **Asynchronous I/O (async/await):** A single-threaded event loop handles all connections concurrently without blocking (more scalable).
+---
 
-```python
-# Example: Multi-threaded server (Python)
-import socket, threading
+## 6. Server Design
 
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind(('0.0.0.0', 5000))
-server.listen()
+The server listens on a fixed port. For every client that connects, it starts a new `ClientHandler` thread so all clients are handled at the same time without blocking each other.
 
-clients = []
+```java
+ServerSocket serverSocket = new ServerSocket(5000);
+System.out.println("Server started on port 5000");
 
-def handle_client(conn, addr):
-    while True:
-        message = conn.recv(1024).decode('utf-8')
-        if not message:
-            break
-        save_to_db(message)        # Persist message
-        broadcast(message, conn)   # Send to all clients
-
-while True:
-    conn, addr = server.accept()
-    clients.append(conn)
-    thread = threading.Thread(target=handle_client, args=(conn, addr))
-    thread.start()
+while (true) {
+    Socket clientSocket = serverSocket.accept();
+    ClientHandler handler = new ClientHandler(clientSocket);
+    new Thread(handler).start();
+}
 ```
 
-### 5.2 Broadcasting Messages
+### ClientHandler
 
-When a client sends a message, the server **broadcasts** it to all other connected clients so everyone sees the conversation in real time.
+Each `ClientHandler` reads incoming data from its client. If the data is a text message, it broadcasts it to all other clients and saves it to the database. If it is a file, it receives the file bytes and forwards them to the target client.
 
-### 5.3 Client Management
+```java
+public class ClientHandler implements Runnable {
+    private Socket socket;
+    private DataInputStream input;
+    private DataOutputStream output;
 
-The server maintains a list of all active connections. When a client disconnects, it is removed from the list to prevent errors when broadcasting future messages.
+    public void run() {
+        try {
+            input  = new DataInputStream(socket.getInputStream());
+            output = new DataOutputStream(socket.getOutputStream());
 
----
+            while (true) {
+                String type = input.readUTF(); // "MSG" or "FILE"
 
-## 6. Client Design
+                if (type.equals("MSG")) {
+                    String message = input.readUTF();
+                    saveToDatabase(message);
+                    broadcast(message);
 
-Each client application provides a simple interface for the user to:
-
-1. **Connect** to the server by providing a username and server address.
-2. **Send messages** that are transmitted to the server.
-3. **Receive messages** from other users broadcasted by the server.
-4. **View chat history** loaded from the database at login time.
-
-The client runs two concurrent operations:
-- A **sending loop** — waits for the user's input and sends it.
-- A **receiving loop** — listens for incoming messages from the server.
-
-```python
-# Example: Client receiving thread (Python)
-import threading, socket
-
-def receive_messages(sock):
-    while True:
-        message = sock.recv(1024).decode('utf-8')
-        print(message)
-
-sock = socket.socket()
-sock.connect(('127.0.0.1', 5000))
-
-thread = threading.Thread(target=receive_messages, args=(sock,))
-thread.daemon = True
-thread.start()
-
-while True:
-    msg = input()
-    sock.send(msg.encode('utf-8'))
+                } else if (type.equals("FILE")) {
+                    String fileName = input.readUTF();
+                    long fileSize   = input.readLong();
+                    byte[] fileData = input.readNBytes((int) fileSize);
+                    broadcast(fileName, fileData); // forward file to others
+                }
+            }
+        } catch (IOException e) {
+            removeClient(this);
+        }
+    }
+}
 ```
 
----
+### Broadcasting
 
-## 7. Database Design
+The server keeps a list of all connected `ClientHandler` objects. When a message or file arrives, it is sent to every client in the list except the sender.
 
-All messages are stored on the server in a relational database. This ensures chat history survives server restarts and is accessible to any client.
+```java
+static List<ClientHandler> clients = new ArrayList<>();
 
-### 7.1 Tables
-
-**Users Table**
-
-| Column      | Type    | Description              |
-|-------------|---------|--------------------------|
-| id          | INTEGER | Primary key              |
-| username    | TEXT    | Unique username          |
-| joined_at   | TEXT    | Timestamp of registration|
-
-**Messages Table**
-
-| Column      | Type    | Description                   |
-|-------------|---------|-------------------------------|
-| id          | INTEGER | Primary key                   |
-| user_id     | INTEGER | Foreign key → Users.id        |
-| content     | TEXT    | The message text              |
-| sent_at     | TEXT    | Timestamp the message was sent|
-
-### 7.2 Database Operations
-
-- **INSERT** — Every message received by the server is immediately saved.
-- **SELECT** — When a new client connects, the last N messages are fetched and sent to them as history.
-- **Prepared Statements** — Used to prevent SQL injection attacks.
-
-```sql
--- Save a message
-INSERT INTO messages (user_id, content, sent_at)
-VALUES (?, ?, datetime('now'));
-
--- Load chat history
-SELECT users.username, messages.content, messages.sent_at
-FROM messages
-JOIN users ON messages.user_id = users.id
-ORDER BY messages.sent_at DESC
-LIMIT 50;
+void broadcast(String message) {
+    for (ClientHandler client : clients) {
+        if (client != this) {
+            client.output.writeUTF("MSG");
+            client.output.writeUTF(message);
+        }
+    }
+}
 ```
 
 ---
 
-## 8. Key Features
+## 7. Client Design
 
-| Feature                  | Description                                                   |
-|--------------------------|---------------------------------------------------------------|
-| Multi-user support       | Unlimited clients can connect simultaneously                  |
-| Real-time messaging      | Messages are delivered instantly to all connected users       |
-| Persistent chat history  | All messages are stored in a database and survive restarts    |
-| History on join          | New clients receive recent chat history upon connecting       |
-| Username identification  | Each message is tagged with the sender's username             |
-| Graceful disconnection   | The server handles client disconnects without crashing        |
-| Timestamps               | Every message is stored with an accurate timestamp            |
+The client connects to the server and then runs two threads — one for **sending** and one for **receiving** — so both can happen at the same time without blocking.
+
+```java
+Socket socket = new Socket("127.0.0.1", 5000);
+DataInputStream  input  = new DataInputStream(socket.getInputStream());
+DataOutputStream output = new DataOutputStream(socket.getOutputStream());
+
+// Receiving thread
+new Thread(() -> {
+    while (true) {
+        String type = input.readUTF();
+        if (type.equals("MSG")) {
+            System.out.println(input.readUTF());
+        } else if (type.equals("FILE")) {
+            String name = input.readUTF();
+            long size   = input.readLong();
+            byte[] data = input.readNBytes((int) size);
+            Files.write(Path.of("received_" + name), data);
+            System.out.println("File received: " + name);
+        }
+    }
+}).start();
+
+// Sending (main thread)
+Scanner scanner = new Scanner(System.in);
+while (scanner.hasNextLine()) {
+    String line = scanner.nextLine();
+    output.writeUTF("MSG");
+    output.writeUTF(line);
+}
+```
 
 ---
 
-## 9. How It Works — Flow Diagram
+## 8. Database Storage
 
+The server stores every chat message in a **SQLite database** using JDBC. This means all messages are persisted even if the server restarts.
+
+### Messages Table
+
+| Column     | Type    | Description                  |
+|------------|---------|------------------------------|
+| id         | INTEGER | Primary key (auto increment) |
+| sender     | TEXT    | Username of the sender       |
+| content    | TEXT    | The message text             |
+| sent_at    | TEXT    | Timestamp of the message     |
+
+### Saving a Message
+
+```java
+void saveToDatabase(String sender, String message) {
+    String sql = "INSERT INTO messages (sender, content, sent_at) VALUES (?, ?, datetime('now'))";
+    try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+        stmt.setString(1, sender);
+        stmt.setString(2, message);
+        stmt.executeUpdate();
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+}
 ```
-Client A                    Server                     Database
-   │                           │                           │
-   │──── Connect (username) ──►│                           │
-   │                           │──── Load history ────────►│
-   │◄─── Chat history ─────────│◄─── Return rows ──────────│
-   │                           │                           │
-   │──── Send message ────────►│                           │
-   │                           │──── INSERT message ──────►│
-   │                           │◄─── Confirm ──────────────│
-   │                           │                           │
-   │         Client B ────────►│                           │
-   │◄─── Broadcast message ────│──── Broadcast ───────────►│ Client B
-   │                           │
-   │──── Disconnect ──────────►│
-   │                           │ (Remove from client list)
+
+When a new client connects, the server loads the last 50 messages from the database and sends them to the client as chat history.
+
+---
+
+## 9. File Transfer
+
+File transfer works by sending the file as raw bytes through the same socket connection used for text messages. A simple protocol tag (`"FILE"` vs `"MSG"`) tells the receiver what kind of data is coming next.
+
+### Sending a File (Client Side)
+
+```java
+void sendFile(String filePath) throws IOException {
+    File file     = new File(filePath);
+    byte[] data   = Files.readAllBytes(file.toPath());
+
+    output.writeUTF("FILE");           // Type tag
+    output.writeUTF(file.getName());   // File name
+    output.writeLong(data.length);     // File size in bytes
+    output.write(data);                // Raw file bytes
+    output.flush();
+}
 ```
+
+### Receiving a File (Client Side)
+
+```java
+String name = input.readUTF();
+long size   = input.readLong();
+byte[] data = input.readNBytes((int) size);
+Files.write(Path.of("received_" + name), data);
+System.out.println("File saved as: received_" + name);
+```
+
+The server receives the file from the sender and forwards it to all other connected clients using the same format. Received files are saved automatically in the client's working directory.
 
 ---
 
 ## 10. Challenges & Solutions
 
-### Challenge 1: Race Conditions with Concurrent Clients
-**Problem:** Multiple threads writing to the database or client list at the same time caused data corruption.  
-**Solution:** Used **thread locks (mutex)** to ensure only one thread modifies shared resources at a time.
+### Challenge 1: Handling Multiple Clients at the Same Time
+**Problem:** The server could only talk to one client at a time if handled in a single thread.  
+**Solution:** Created a new `Thread` for each connecting client using `ClientHandler`, allowing the server to manage all clients in parallel.
 
-### Challenge 2: Handling Client Disconnections
-**Problem:** When a client closed abruptly, attempting to send to their socket raised an exception and crashed the server.  
-**Solution:** Wrapped all socket operations in `try/except` blocks and removed disconnected clients from the active list immediately.
+### Challenge 2: Distinguishing Messages from Files
+**Problem:** Both text and file data travel through the same socket, so the receiver needed to know which type was arriving.  
+**Solution:** Added a type tag (`"MSG"` or `"FILE"`) written before every piece of data using `writeUTF()`. The receiver reads this tag first and then handles the data accordingly.
 
-### Challenge 3: Delivering Chat History Efficiently
-**Problem:** Loading thousands of old messages on startup was slow.  
-**Solution:** Limited history retrieval to the **last 50 messages** using `LIMIT` in SQL queries.
+### Challenge 3: Client Disconnecting Unexpectedly
+**Problem:** If a client closed abruptly, the server threw an `IOException` and could crash.  
+**Solution:** Wrapped the client handler loop in a `try/catch`. When an exception is caught, the client is removed from the active clients list and the thread ends cleanly.
 
-### Challenge 4: Message Encoding
-**Problem:** Special characters caused decoding errors between clients on different systems.  
-**Solution:** Standardized all messages to **UTF-8 encoding** on both send and receive.
+### Challenge 4: Large File Transfers
+**Problem:** Very large files caused memory issues when loaded entirely into a byte array.  
+**Solution:** For large files, the data can be sent in **chunks** using a buffer loop instead of loading the whole file at once, reducing memory usage significantly.
+
+```java
+// Chunked transfer example
+byte[] buffer = new byte[4096];
+int bytesRead;
+while ((bytesRead = fileStream.read(buffer)) != -1) {
+    output.write(buffer, 0, bytesRead);
+}
+```
 
 ---
 
 ## 11. Testing
 
-The application was tested under the following scenarios:
-
-| Test Case                          | Expected Result                        | Status |
-|------------------------------------|----------------------------------------|--------|
-| Single client connects and sends   | Message received and stored in DB      | ✅ Pass |
-| Multiple clients connect at once   | All receive each other's messages      | ✅ Pass |
-| Client disconnects abruptly        | Server continues running normally      | ✅ Pass |
-| New client joins mid-conversation  | Receives last 50 messages as history   | ✅ Pass |
-| Server restarts                    | Chat history is preserved in database  | ✅ Pass |
-| 10+ simultaneous clients           | No message loss or server crash        | ✅ Pass |
+| Test Case                                    | Expected Result                                      | Status  |
+|----------------------------------------------|------------------------------------------------------|---------|
+| Start the server                             | Server starts and listens on port 5000               | ✅ Pass |
+| Connect one client                           | Client connects successfully                         | ✅ Pass |
+| Connect multiple clients at the same time    | All clients connect without errors                   | ✅ Pass |
+| One client sends a text message              | All other clients receive the message                | ✅ Pass |
+| Message is saved to the database             | Message appears in the SQLite messages table         | ✅ Pass |
+| New client joins and receives history        | Last 50 messages are sent to the new client          | ✅ Pass |
+| Client sends a file                          | All other clients receive and save the file          | ✅ Pass |
+| Client disconnects abruptly                  | Server continues running; other clients unaffected   | ✅ Pass |
+| Server restarts                              | Chat history is still available from the database    | ✅ Pass |
 
 ---
 
 ## 12. Conclusion
 
-This project successfully demonstrates the implementation of a **real-time, multi-user chat application** with **server-side database persistence**. The system correctly handles concurrent client connections, broadcasts messages in real time, and stores all chat data reliably in a database.
+This project successfully implements a **multi-user Java chat application** that supports real-time messaging, server-side message storage, and file transfer between clients. The server handles multiple clients simultaneously using threads, and a simple type-tag protocol cleanly separates text messages from file transfers over the same socket connection.
 
-The key learning outcomes of this project include:
+Key learning outcomes include:
 
-- Understanding **client-server socket programming**.
-- Managing **concurrent connections** using threads or async I/O.
-- Designing a **relational database schema** for message storage.
-- Writing **robust server code** that handles errors and disconnections gracefully.
+- Using **Java Sockets** for network communication.
+- Managing **concurrent clients** with multithreading.
+- Persisting data with **SQLite and JDBC**.
+- Implementing a **binary file transfer** protocol over a socket.
+- Writing **robust server code** that handles client disconnections gracefully.
 
-Future improvements could include user authentication with hashed passwords, private messaging between users, a graphical user interface (GUI), end-to-end message encryption, and deployment to a cloud server for public access.
+Future improvements could include a graphical user interface (GUI), private messaging between specific users, progress indicators for file transfers, and user login with a username and password.
 
 ---
-
 
