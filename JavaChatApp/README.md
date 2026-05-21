@@ -63,7 +63,7 @@ This report presents the design and implementation of a **Multi-User Chat Applic
 | Multithreading| `java.lang.Thread`                |
 | Database      | SQLite via JDBC (`sqlite-jdbc`)   |
 | File Transfer | `java.io` (InputStream / OutputStream) |
-| IDE           | IntelliJ IDEA / Eclipse           |
+| IDE           | VS code         |
 
 ---
 
