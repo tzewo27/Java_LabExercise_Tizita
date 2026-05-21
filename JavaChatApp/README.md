@@ -1,8 +1,5 @@
 # Multi-User Chat Application — Project Report
 
-**Course:** Computer Networks / Software Engineering  
-**Date:** May 21, 2026  
-
 ---
 
 ## Table of Contents
