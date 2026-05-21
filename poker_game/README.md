@@ -74,8 +74,7 @@ The application has one screen with two player areas and a single Deal button. W
 | Programming Language | Java (JDK 17+)             |
 | GUI Framework        | JavaFX / Swing             |
 | Randomization        | `java.util.Random` / `Collections.shuffle()` |
-| IDE                  | IntelliJ IDEA / Eclipse    |
-| Build Tool           | Maven / Gradle             |
+| IDE                  | vs code    |
 | Version Control      | Git & GitHub               |
 
 ---
