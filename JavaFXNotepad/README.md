@@ -69,8 +69,7 @@ The application runs entirely on the local machine — no internet, no database,
 | Programming Language | Java (JDK 17+)             |
 | GUI Framework        | JavaFX 17+                 |
 | File I/O             | `java.io` / `java.nio.file`|
-| IDE                  | IntelliJ IDEA / Eclipse    |
-| Build Tool           | Maven / Gradle             |
+| IDE                  | vs code    |           |
 | Version Control      | Git & GitHub               |
 
 ---
